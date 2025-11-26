@@ -24,7 +24,7 @@ jobs:
     - name: Execute command via SSM
       run: |
         aws ssm send-command \
-          --instance-ids "i-08b57244688e0e5b7" \  # 替换为你的EC2实例ID
+          --instance-ids "i-08b57244688e0e5b7" \
           --document-name "AWS-RunShellScript" \
           --parameters 'commands=[
             "cd /path/to/your/app",
