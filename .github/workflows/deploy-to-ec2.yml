@@ -8,27 +8,72 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write   # 这是使用OIDC所必需的
+      id-token: write
       contents: read
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Build Java project and collect HTML files
+      run: |
+        # 构建项目
+        ./mvnw clean package -DskipTests
+        
+        # 检查根目录下的HTML文件
+        echo "HTML files in root directory after build:"
+        find . -maxdepth 1 -name "*.html" | head -10
+        
+        # 创建文件列表用于传输
+        find . -maxdepth 1 -name "*.html" > html_files.txt 2>/dev/null || echo "No HTML files found"
+        find . -maxdepth 1 -name "*.css" >> html_files.txt 2>/dev/null || true
+        find . -maxdepth 1 -name "*.js" >> html_files.txt 2>/dev/null || true
+        
+        # 显示文件列表
+        echo "Files to deploy:"
+        cat html_files.txt 2>/dev/null || echo "No files to deploy"
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ vars.AWS_ROLE_ARN }}  # 使用在仓库Variables中配置的角色ARN
-        aws-region: ap-southeast-5  # 替换为你的AWS区域
+        role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+        aws-region: ap-southeast-5
 
-    - name: Execute command via SSM
+    - name: Transfer HTML files and deploy via SSM
       run: |
+        # 读取文件列表并逐个传输
+        if [ -f html_files.txt ] && [ -s html_files.txt ]; then
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              echo "Transferring $file to EC2..."
+              # 使用AWS CLI通过SSM传输文件
+              aws ssm send-command \
+                --instance-ids "i-08b57244688e0e5b7" \
+                --document-name "AWS-RunShellScript" \
+                --parameters "commands=[
+                  'echo \"$(base64 -w 0 "$file")\" | base64 -d > /opt/$(basename "$file")',
+                  'chmod 644 /opt/$(basename "$file")'
+                ]" \
+                --output text
+            fi
+          done < html_files.txt
+        else
+          echo "No HTML files to transfer"
+        fi
+
+        # 重启应用
         aws ssm send-command \
           --instance-ids "i-08b57244688e0e5b7" \
           --document-name "AWS-RunShellScript" \
-          --parameters 'commands=[
-            "cd /path/to/your/app",
-            "git pull origin main",
-            "docker-compose down",
-            "docker-compose up -d"
-          ]'
+          --parameters "commands=[
+            'cd /opt',
+            'docker-compose down',
+            'docker-compose up -d',
+            'echo HTML files deployed to /opt and application restarted'
+          ]"
