@@ -5,7 +5,7 @@ import java.io.IOException;
 public class GenerateHtml {
 
     public static void main(String[] args) {
-        String htmlContent = "<html>\n<head>\n<title>Hello World</title>\n</head>\n<body>\n<h1>Hello World!</h1>\n</body>\n</html>";
+        String htmlContent = "<html>\n<head>\n<title>Hello World</title>\n</head>\n<body>\n<h1>Hello World!2</h1>\n</body>\n</html>";
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter("index.html"))) {
             writer.write(htmlContent);
@@ -15,4 +15,5 @@ public class GenerateHtml {
             e.printStackTrace();
         }
     }
+
 }
